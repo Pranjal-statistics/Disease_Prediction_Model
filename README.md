@@ -1,5 +1,5 @@
 # Disease_Prediction_Modeling
-
+![DiseasePrediction](Diseaseprediction.jpeg)
 
 This project focuses on predicting diseases using various machine learning models. We import and clean the data, selecting features for our model. The dataset contains variables representing various clinical symptoms, with prognosis as the outcome, which is a result of the combination of symptoms. The dataset was sourced from Kaggle: Disease Prediction Using Machine Learning
 
