@@ -1,0 +1,282 @@
+---
+title: "Disease Prediction"
+author: "PRANJAL SRIVASTAVA"
+date: "2022-03-30"
+output:
+  pdf_document:
+    latex_engine: xelatex
+  highlight: pygments
+  toc: yes
+  toc_float: yes
+---
+![](/Users/pranjalsrivastava/Desktop/Projects/Disease_Prediction_Model/Diseaseprediction.jpeg)
+
+
+
+
+
+```{r}
+library(tidyr)
+library(dplyr)
+library(magrittr)
+library(caret)
+library(Boruta)
+library(rpart)
+library(rpart.plot)
+library(pROC)
+```
+
+# [***D. Data And Experiment***]{.ul}
+## [***Data Preparation and Cleaning***]{.ul} 
+The most important part of this project is to import and clean the data as needed.The dataset contains the variables as various clinical symptoms and prognosis as a result of combination of symptoms. The data is originally taken from Kaggle data source:
+  [[https://www.kaggle.com/datasets/kaushil268/disease-prediction-using-machine-learning]{.ul}]
+(https://www.kaggle.com/datasets/kaushil268/disease-prediction-using-machine-learning)
+
+### [Importing data]{.ul}
+We set the working directory as we have already downloaded the 'Disease.csv' data in my folder from the website.
+```{r}
+setwd("/Users/pranjalsrivastava/Desktop/Projects/Disease_Prediction_Model")
+```
+After setting the working directory, we imported the `csv` data file and generating the raw data frame "Disease1" 
+```{r}
+Disease1 <- read.csv('Disease.csv')
+
+Disease1 <- Disease1 %>% select(-X)
+
+
+Disease1[] <- lapply(Disease1, as.factor)
+
+
+```
+
+
+
+We can clearly see that there no missing values in our final dataframe. Prognosis has 42 unique categorical values names as various diseases. All other variables are valued either 1 or 0
+
+## Feature Selection (Boruta)
+
+```{r}
+Boruta <- Boruta(prognosis~., data = Disease1, doTrace = 2)
+
+plot(Boruta, las = 2, cex.axis = 0.5)
+
+plotImpHistory(Boruta)
+attStats(Boruta)
+Boruta
+```
+
+## Removing "fluid_overload" as it has been rejected in feature selection
+```{r}
+Disease <- Disease1 %>% select(-fluid_overload)
+```
+
+
+## Unique Diseases(prognosis) in the dataset.
+
+```{r}
+unique(Disease$prognosis)
+```
+
+### [Splitting the Data]{.ul}
+
+We can now split the data into 70% training and 30% testing data. I used createDataPartition() function of library caret for random splitting resulting in balanced outcome classes.
+
+```{r}
+## Training and Testing Dataset
+
+Train_index <- createDataPartition(Disease$prognosis, p = .7, list = FALSE, times = 1)
+
+train <- Disease[ Train_index,]
+test <- Disease[-Train_index,]
+
+
+
+```
+# [***E.Modelling and  Results***]{.ul}
+
+After splitting the data into training and testing data, we will apply various machine learning algorithms to make various models, and compare them using various metrics.
+
+
+## [***Decision Tree***]{.ul}
+
+Decision Trees are a type of Supervised Machine Learning (that is you explain what the input is and what the corresponding output is in the training data) where the data is continuously split according to a certain parameter. The tree can be explained by two entities, namely decision nodes and leaves. The leaves are the decisions or the final outcomes. And the decision nodes are where the data is split.
+
+I trained the decision tree on the training dataset using all variables of symptoms as predictors and prognosis as response variable.We also did pruning of tree to make the better visualized tree. 
+```{r}
+Disease_tree <- rpart(prognosis ~ ., data = train, method = "class")
+
+
+
+# Plot the tree
+rpart.plot(Disease_tree, extra = 0, yesno = TRUE)
+
+# Make prediction on test data
+pred1 <- predict(Disease_tree, newdata = test, type = "class")
+
+
+CM_dt1 <- confusionMatrix(pred1, test$prognosis)
+CM_dt1$overall
+# Extract the table from the confusion matrix
+table <- as.table(CM_dt1$table)
+
+## Sensitivity
+
+# Calculate the sum of true positives
+TP <- sum(diag(table))
+
+# Calculate the sum of false negatives
+FN <- sum(rowSums(table)) - TP
+
+# Calculate Micro-averaged Recall
+Micro_Recall <- TP / (TP + FN)
+
+# Print Micro-averaged Recall
+cat(paste("Sensitivity = ", Micro_Recall), "\n")
+
+## Specificity
+
+# Initialize sums
+sum_TN <- 0
+sum_FP <- 0
+
+# Calculate the sum of true negatives and false positives for each class
+for (i in 1:nrow(table)) {
+  TN <- sum(table[-i, -i])
+  FP <- sum(table[-i, i])
+  sum_TN <- sum_TN + TN
+  sum_FP <- sum_FP + FP
+}
+
+# Calculate Micro-averaged Specificity
+Micro_Specificity <- sum_TN / (sum_TN + sum_FP)
+
+cat(paste("Specificity = ", Micro_Specificity), "\n")
+
+
+```
+
+
+
+
+## Results
+The decision tree model achieved the accuracy of 89.70%
+
+## [***Naive Bayes***]{.ul}
+
+```{r, warning=FALSE}
+
+## Naive Bayes
+library(e1071)
+
+model <- naiveBayes(prognosis ~ ., data = train)
+print("Prediction on Test data")
+predictions <- predict(model, newdata = test)
+
+CM_dt1 <- confusionMatrix(predictions, test$prognosis)
+CM_dt1$overall
+
+# Extract the table from the confusion matrix
+table <- as.table(CM_dt1$table)
+
+## Sensitivity
+
+# Calculate the sum of true positives
+TP <- sum(diag(table))
+
+# Calculate the sum of false negatives
+FN <- sum(rowSums(table)) - TP
+
+# Calculate Micro-averaged Recall
+Micro_Recall <- TP / (TP + FN)
+
+# Print Micro-averaged Recall
+cat(paste("Sensitivity = ", Micro_Recall), "\n")
+
+## Specificity
+
+# Initialize sums
+sum_TN <- 0
+sum_FP <- 0
+
+# Calculate the sum of true negatives and false positives for each class
+for (i in 1:nrow(table)) {
+  TN <- sum(table[-i, -i])
+  FP <- sum(table[-i, i])
+  sum_TN <- sum_TN + TN
+  sum_FP <- sum_FP + FP
+}
+
+# Calculate Micro-averaged Specificity
+Micro_Specificity <- sum_TN / (sum_TN + sum_FP)
+
+cat(paste("Specificity = ", Micro_Specificity), "\n")
+
+```
+## Results 
+The Naive Bayes model has achieved an accuracy of 1 which is far better than that of decision tree model. 
+
+
+## [***Support Vector Machine***]{.ul}
+
+
+```{r}
+
+### Support Vector Machine
+
+model_svm <- svm(prognosis ~ ., data = train)
+
+predictions_svm <- predict(model_svm, newdata = test)
+
+CM_dt1 <- confusionMatrix(predictions_svm, test$prognosis)
+CM_dt1$overall
+# Extract the table from the confusion matrix
+table <- as.table(CM_dt1$table)
+
+## Sensitivity
+
+# Calculate the sum of true positives
+TP <- sum(diag(table))
+
+# Calculate the sum of false negatives
+FN <- sum(rowSums(table)) - TP
+
+# Calculate Micro-averaged Recall
+Micro_Recall <- TP / (TP + FN)
+
+# Print Micro-averaged Recall
+cat(paste("Sensitivity = ", Micro_Recall), "\n")
+
+## Specificity
+
+# Initialize sums
+sum_TN <- 0
+sum_FP <- 0
+
+# Calculate the sum of true negatives and false positives for each class
+for (i in 1:nrow(table)) {
+  TN <- sum(table[-i, -i])
+  FP <- sum(table[-i, i])
+  sum_TN <- sum_TN + TN
+  sum_FP <- sum_FP + FP
+}
+
+# Calculate Micro-averaged Specificity
+Micro_Specificity <- sum_TN / (sum_TN + sum_FP)
+
+cat(paste("Specificity = ", Micro_Specificity), "\n")
+
+```
+
+
+## Results of Support Vector Machine
+The SVM model also achieved accuracy of 1 which is same as Naive Bayes
+
+# [***F. Summary***]{.ul}
+After, comparing the models, it is shown that SVM and Naive Bayes are better performing than Decision tree in terms of accuracy, specificity and sensitivity. 
+
+However, in real world scenario, it is not practically possible to a achieve an accuracy of 1. So it is derived that the models are overfitting due to unavailabilty of accurate data.
+
+
+
+
+
